@@ -28,4 +28,4 @@ python -m pytest -q
 python ausschreibungscheck.py --von 2026-10-01      # ab einem bestimmten Tag
 python ausschreibungscheck.py --zip export.zip      # lokale Exportdatei testen
 ```
-Bei jedem Push auf `main` baut GitHub die .exe (Actions → „Windows-Programm bauen“ → Artefakt). Ein Tag `v*` erzeugt zusätzlich ein Release mit Zip-Download.
+Bei jedem Push auf `main` baut GitHub die .exe und veröffentlicht sie als neueste Version unter Releases (https://github.com/lemmy1896/AusschreibungsCheck/releases/latest).

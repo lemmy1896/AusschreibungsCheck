@@ -3,7 +3,6 @@ name: Windows-Programm bauen
 on:
   push:
     branches: [main]
-    tags: ["v*"]
   pull_request:
   workflow_dispatch:
 
@@ -43,8 +42,13 @@ jobs:
           name: AusschreibungsCheck
           path: paket/
 
-      - name: Release veröffentlichen
-        if: startsWith(github.ref, 'refs/tags/v')
+      - name: Download auf der Release-Seite veröffentlichen
+        if: github.event_name != 'pull_request'
         uses: softprops/action-gh-release@v2
         with:
+          tag_name: version-${{ github.run_number }}
+          name: AusschreibungsCheck Version ${{ github.run_number }}
+          target_commitish: ${{ github.sha }}
+          make_latest: true
+          body: "Herunterladen: AusschreibungsCheck.zip unten bei Assets, entpacken, AusschreibungsCheck.exe doppelklicken."
           files: AusschreibungsCheck.zip
