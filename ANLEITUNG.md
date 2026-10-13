@@ -12,8 +12,8 @@ Windows zeigt beim ersten Start eventuell „Der Computer wurde durch Windows ge
 
 ## Programmfenster
 - **Plattformen:** e-Vergabe des Bundes (evergabe-online.de), DTVP, evergabe.de, subreport ELViS und RIB meinauftrag. „Alle Plattformen“ nimmt zusätzlich alle übrigen Bekanntmachungen des Bundes-Exports mit.
-- **Zeitraum:** normalerweise „seit dem letzten Lauf“. Nach geänderten Schlagwörtern oder Plattformen „Letzte 30 Tage erneut prüfen“ wählen.
-- **Zusätzliche Schlagwörter:** eins pro Zeile. Ohne Angabe reicht ein Treffer allein für die Liste; mit „Wort: 5“ zählt es nur 5 Punkte. Die Eingaben bleiben für den nächsten Start gespeichert.
+- **Zeitraum:** „Seit dem letzten Lauf“ prüft nur neue Tage. „Ab Datum“ prüft alle Ausschreibungen ab dem eingetragenen Tag (TT.MM.JJJJ), z. B. nach geänderten Schlagwörtern. Bereits geladene Tage kommen aus dem Zwischenspeicher und gehen schnell.
+- **Schlagwörter:** die komplette Liste des Profils mit Punkten. Zum Hinzufügen Schlagwort und Punkte eintragen und „Hinzufügen / Punkte ändern“ klicken. Zum Ändern einen Eintrag anklicken, Punkte anpassen und denselben Knopf klicken. Zum Löschen Eintrag anklicken und „Entfernen“ (oder Entf-Taste). Änderungen landen sofort in `profil_ifs.yaml`; beim ersten Speichern wird eine Sicherung `profil_ifs.yaml.bak` angelegt.
 
 ## Excel-Liste
 - Grün markiert und „neu“: Treffer, die in einem früheren Lauf noch nicht dabei waren.
@@ -22,7 +22,7 @@ Windows zeigt beim ersten Start eventuell „Der Computer wurde durch Windows ge
 - Alle Listen liegen im Unterordner `ergebnisse`.
 
 ## Suchprofil anpassen
-`profil_ifs.yaml` mit einem Texteditor (z. B. Editor/Notepad) öffnen. Dort stehen Suchbegriffe mit Gewicht, CPV-Codes, Bonusregionen, Ausschlusswörter und die Mindestpunktzahl. Änderungen gelten beim nächsten Start.
+Schlagwörter am einfachsten im Programmfenster bearbeiten. CPV-Codes, Bonusregionen, Ausschlusswörter, Plattformen und die Mindestpunktzahl stehen in `profil_ifs.yaml` und lassen sich mit einem Texteditor (z. B. Editor/Notepad) ändern. Änderungen gelten beim nächsten Start.
 
 ## Datenquelle
 Offene Tagesexporte des Bekanntmachungsservice des Bundes (oeffentlichevergabe.de, Datenservice Öffentlicher Einkauf). Die Plattform wird am Link zu den Vergabeunterlagen erkannt; die Liste zeigt sie in der Spalte „Plattform“. Die Angebotsfrist kommt aus dem eForms-Export; Bekanntmachungen mit abgelaufener Frist werden ausgelassen.

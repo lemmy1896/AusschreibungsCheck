@@ -196,7 +196,7 @@ def test_auswahl_und_zusatzbegriffe(tmp_path):
                            "Retentionsbodenfilter": None}
 
 
-def test_fenster_startet(tmp_path):
+def test_fenster_startet(tmp_path, monkeypatch):
     import pytest
     tk = pytest.importorskip("tkinter")
     import gui
@@ -204,14 +204,41 @@ def test_fenster_startet(tmp_path):
         root = tk.Tk()
     except tk.TclError:
         pytest.skip("keine Anzeige verfügbar")
+    monkeypatch.setattr(gui.messagebox, "showinfo", lambda *a, **k: None)
     profil = tmp_path / "profil_ifs.yaml"
     profil.write_text(PROFIL.read_text(encoding="utf-8"), encoding="utf-8")
+    (tmp_path / "daten").mkdir()
+    (tmp_path / "daten" / "einstellungen.json").write_text('{"zusatzbegriffe": "Klärschlamm: 7"}', encoding="utf-8")
     fenster = gui.Fenster(root, tmp_path, profil)
-    fenster.begriffe_text.insert("1.0", "Starkregen: 7")
-    plattformen, alle, begriffe = fenster.auswahl()
-    assert len(plattformen) == 5 and not alle and begriffe == "Starkregen: 7"
+    assert ac.Profil.laden(profil).begriffe["Klärschlamm"] == 7  # aus alter Version übernommen
+
+    fenster.wort_var.set("Starkregengefahrenkarte")
+    fenster.punkte_var.set("12")
+    fenster.begriff_speichern()
+    fenster.tabelle.selection_set("GEP")
+    root.update()
+    fenster.begriff_entfernen()
+    begriffe = ac.Profil.laden(profil).begriffe
+    assert begriffe["Starkregengefahrenkarte"] == 12 and "GEP" not in begriffe
+    assert len(fenster.tabelle.get_children()) == len(begriffe)
+
+    fenster.zeitraum_var.set("datum")
+    vor_zehn_tagen = dt.date.today() - dt.timedelta(days=10)
+    fenster.datum_var.set(f"{vor_zehn_tagen:%d.%m.%Y}")
+    assert fenster.startdatum() == (True, vor_zehn_tagen)
+    plattformen, alle = fenster.auswahl()
+    assert len(plattformen) == 5 and not alle
     root.update()
     root.destroy()
+
+
+def test_datum_lesen():
+    import pytest
+    pytest.importorskip("tkinter")
+    import gui
+    assert gui.datum_lesen("01.09.2026") == dt.date(2026, 9, 1)
+    assert gui.datum_lesen("2026-09-01") == dt.date(2026, 9, 1)
+    assert gui.datum_lesen("31.02.2026") is None
 
 
 def test_abruf_wiederholt_bei_abweisung(tmp_path, monkeypatch):
@@ -257,3 +284,20 @@ def test_aenderungsbekanntmachung_nur_einmal(tmp_path):
     excel = ac.ausfuehren(profil, tmp_path, zips=[zipdatei], log=lambda _: None)
     zeilen = list(load_workbook(excel)["Treffer"].iter_rows(min_row=2, values_only=True))
     assert len(zeilen) == 1 and zeilen[0][7] == "2026-10-13"
+
+
+def test_begriffe_speichern_laesst_rest_unveraendert(tmp_path):
+    profil = tmp_path / "profil_ifs.yaml"
+    profil.write_text(PROFIL.read_text(encoding="utf-8"), encoding="utf-8")
+    alt = ac.Profil.laden(profil)
+    begriffe = dict(alt.begriffe)
+    del begriffe["GEP"]
+    begriffe["Regenklärbecken"] = 20
+    begriffe["Starkregenrisikomanagement: Karte"] = 9
+    ac.begriffe_speichern(profil, begriffe)
+    neu = ac.Profil.laden(profil)
+    assert neu.begriffe == begriffe
+    assert (neu.cpv, neu.regionen, neu.ausschluss, neu.plattformen, neu.mindestpunkte) == \
+        (alt.cpv, alt.regionen, alt.ausschluss, alt.plattformen, alt.mindestpunkte)
+    assert "# CPV-Codes" in profil.read_text(encoding="utf-8")
+    assert (tmp_path / "profil_ifs.yaml.bak").read_text(encoding="utf-8") == PROFIL.read_text(encoding="utf-8")

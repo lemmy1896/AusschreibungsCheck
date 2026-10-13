@@ -16,6 +16,7 @@ Ausführbares Programm (keine Website), das deutsche Ausschreibungsplattformen n
 | 5 | Start | Manuell per Doppelklick; lädt alle Tage seit dem letzten Lauf nach (erster Lauf: 30 Tage) und öffnet danach die Excel-Liste | einfachster Start; Zeitplan später ohne Programmänderung ergänzbar |
 | 6 | Bau der .exe | GitHub Actions baut auf Windows bei jedem Push; Download als Artefakt bzw. Release | kein Zugriff auf Julius' Rechner, keine Python-Installation nötig |
 | 8 | Oberfläche | Programmfenster (tkinter) mit Plattformauswahl, Zeitraum und Eingabe zusätzlicher Schlagwörter; Kommandozeile bleibt für Tests | Wunsch von Julius; tkinter ist in Python enthalten und lässt sich gut zur .exe packen |
+| 10 | Schlagwortpflege und Startdatum | Schlagwortliste des Profils im Fenster bearbeiten (hinzufügen, Punkte ändern, entfernen), sofort in die YAML-Datei gespeichert; Startdatum frei wählbar | Wunsch von Julius; ersetzt das separate Feld „zusätzliche Schlagwörter“ |
 | 9 | Weitere Plattformen | DTVP, evergabe.de, subreport ELViS, RIB meinauftrag (die vier häufigsten im Bundes-Export nach evergabe-online) | gleiche Datenquelle, Erkennung am Unterlagen-Link |
 | 7 | Regionen | Bundesweite Suche, Bonuspunkte für Referenzregionen | keine passende Ausschreibung soll durchrutschen |
 

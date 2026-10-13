@@ -87,6 +87,28 @@ def plattformen_lesen(eintrag) -> dict[str, list[str]]:
             for name, hosts in eintrag.items()}
 
 
+def begriffe_speichern(pfad: Path, begriffe: dict[str, int]) -> None:
+    """Schreibt die Schlagwortliste zurück in die Profil-Datei; alles andere bleibt unverändert."""
+    zeilen = pfad.read_text(encoding="utf-8").splitlines()
+    start = next((i for i, z in enumerate(zeilen) if re.match(r"^begriffe:\s*(#.*)?$", z)), None)
+    neu = ["begriffe:"] + [
+        "  " + yaml.safe_dump({wort: int(punkte)}, allow_unicode=True, width=1000).strip()
+        for wort, punkte in sorted(begriffe.items(), key=lambda e: (-e[1], e[0].lower()))
+    ]
+    if start is None:
+        zeilen += [""] + neu
+    else:
+        ende = next((i for i in range(start + 1, len(zeilen)) if zeilen[i] and not zeilen[i][0].isspace()),
+                    len(zeilen))
+        while ende > start + 1 and not zeilen[ende - 1].strip():
+            ende -= 1
+        zeilen[start:ende] = neu
+    sicherung = pfad.with_suffix(pfad.suffix + ".bak")
+    if not sicherung.exists():
+        sicherung.write_text(pfad.read_text(encoding="utf-8"), encoding="utf-8")
+    pfad.write_text("\n".join(zeilen) + "\n", encoding="utf-8")
+
+
 def zusatzbegriffe_lesen(text: str, standardgewicht: int) -> dict[str, int]:
     """Eine Zeile pro Schlagwort, optional mit Gewicht: "Starkregen" oder "Starkregen: 12"."""
     begriffe: dict[str, int] = {}
