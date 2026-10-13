@@ -1,0 +1,18 @@
+name: Live-Datenprüfung
+
+on:
+  push:
+    branches: [main]
+    paths: ["ausschreibungscheck.py", "werkzeuge/**", "profil_*.yaml", ".github/workflows/datenpruefung.yml"]
+  workflow_dispatch:
+
+jobs:
+  pruefen:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - run: pip install -r requirements.txt
+      - run: python werkzeuge/datenpruefung.py
