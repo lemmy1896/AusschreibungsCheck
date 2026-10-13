@@ -103,3 +103,38 @@ def test_gesamtlauf(tmp_path, monkeypatch):
     assert ac.main(["--zip", str(zipdatei), "--nicht-oeffnen"]) == 0
     ws = load_workbook(next((tmp_path / "ergebnisse").glob("*.xlsx")))["Treffer"]
     assert all(z[0] is None for z in ws.iter_rows(min_row=2, values_only=True))
+
+
+EFORMS = b"""<?xml version="1.0" encoding="UTF-8"?>
+<ContractNotice xmlns="urn:oasis:names:specification:ubl:schema:xsd:ContractNotice-2"
+  xmlns:cac="urn:oasis:names:specification:ubl:schema:xsd:CommonAggregateComponents-2"
+  xmlns:cbc="urn:oasis:names:specification:ubl:schema:xsd:CommonBasicComponents-2">
+  <cac:ProcurementProjectLot><cac:TenderingProcess>
+    <cac:TenderSubmissionDeadlinePeriod><cbc:EndDate>2026-11-20+01:00</cbc:EndDate><cbc:EndTime>10:00:00+01:00</cbc:EndTime></cac:TenderSubmissionDeadlinePeriod>
+  </cac:TenderingProcess></cac:ProcurementProjectLot>
+  <cac:ProcurementProjectLot><cac:TenderingProcess>
+    <cac:TenderSubmissionDeadlinePeriod><cbc:EndDate>2026-11-05+01:00</cbc:EndDate><cbc:EndTime>12:00:00+01:00</cbc:EndTime></cac:TenderSubmissionDeadlinePeriod>
+  </cac:TenderingProcess></cac:ProcurementProjectLot>
+</ContractNotice>"""
+
+
+def test_frist_aus_eforms():
+    puffer = io.BytesIO()
+    with zipfile.ZipFile(puffer, "w") as zf:
+        zf.writestr("abc-01.xml", EFORMS)
+    assert ac.fristen_aus_zip(puffer.getvalue()) == {"abc-01": "2026-11-05T12:00"}
+
+    r = release("x", "Regenklärbecken")
+    del r["tender"]["tenderPeriod"]
+    puffer = io.BytesIO()
+    with zipfile.ZipFile(puffer, "w") as zf:
+        zf.writestr("abc-01.json", json.dumps(r))
+    b = ac.aus_release(ac.releases_aus_zip(puffer.getvalue(), {"abc-01": "2026-11-05T12:00"})[0])
+    assert b.frist == "2026-11-05 12:00"
+
+
+def test_plattform_nur_aus_unterlagenlink():
+    profil = ac.Profil.laden(PROFIL)
+    r = release("y", "x", plattform="vergabe.vmstart.de")
+    r["parties"][0]["contactPoint"] = {"url": "https://www.evergabe-online.de"}
+    assert not ac.passt_plattform(ac.aus_release(r), profil)

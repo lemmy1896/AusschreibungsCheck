@@ -30,10 +30,11 @@ def pfade_mit(obj, suchtext, pfad=""):
 
 
 def main():
-    for format_ in ("ocds.zip", "eforms.zip"):
+    fristen = {}
+    for format_ in ("eforms.zip", "ocds.zip"):
         tag = dt.date.today() - dt.timedelta(days=1)
         for _ in range(5):
-            url = ac.EXPORT_URL.replace("format=ocds.zip", f"format={format_}").format(day=tag.isoformat())
+            url = ac.EXPORT_URL.format(day=tag.isoformat(), format=format_)
             print(f"\n=== {url}")
             try:
                 with urllib.request.urlopen(urllib.request.Request(url, headers={"User-Agent": ac.USER_AGENT}), timeout=120) as a:
@@ -49,9 +50,11 @@ def main():
         with zipfile.ZipFile(io.BytesIO(inhalt)) as zf:
             namen = zf.namelist()
             print(f"{len(namen)} Dateien im Zip, z. B.:", namen[:5])
-            if format_ != "ocds.zip":
-                continue
-            releases = ac.releases_aus_zip(inhalt)
+        if format_ != "ocds.zip":
+            fristen = ac.fristen_aus_zip(inhalt)
+            print(f"Fristen aus eForms: {len(fristen)}, z. B. {list(fristen.items())[:3]}")
+            continue
+        releases = ac.releases_aus_zip(inhalt, fristen)
         print(f"{len(releases)} Releases gelesen")
         if not releases:
             with zipfile.ZipFile(io.BytesIO(inhalt)) as zf:
@@ -82,7 +85,13 @@ def main():
               f"{sum(ac.passt_plattform(t.bekanntmachung, profil) for t in bewertet)}")
         for t in sorted(bewertet, key=lambda t: -t.punkte)[:15]:
             b = t.bekanntmachung
-            print(f"  {t.punkte:3d}  {b.titel[:90]} | {b.vergabestelle[:40]} | {b.regionen[:2]} | {b.link[:80]}")
+            print(f"  {t.punkte:3d}  {b.titel[:90]} | {b.vergabestelle[:40]} | {b.regionen[:2]} | {b.frist} | {b.link[:80]}")
+        print("Alle evergabe-online-Bekanntmachungen des Tages (ohne Mindestpunktzahl):")
+        profil.mindestpunkte = 0
+        for b in alle:
+            if ac.passt_plattform(b, profil):
+                t = ac.bewerten(b, profil)
+                print(f"  {t.punkte if t else '-':>3}  {b.titel[:80]} | {b.vergabestelle[:35]} | {b.frist} | {b.link[:90]}")
 
 
 if __name__ == "__main__":

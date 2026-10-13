@@ -17,6 +17,7 @@ import sys
 import urllib.error
 import urllib.request
 import zipfile
+import xml.etree.ElementTree as ET
 from dataclasses import dataclass, field
 from pathlib import Path
 
@@ -25,7 +26,7 @@ from openpyxl import Workbook
 from openpyxl.styles import Font, PatternFill
 from openpyxl.utils import get_column_letter
 
-EXPORT_URL = "https://oeffentlichevergabe.de/api/notice-exports?pubDay={day}&format=ocds.zip"
+EXPORT_URL = "https://oeffentlichevergabe.de/api/notice-exports?pubDay={day}&format={format}"
 NOTICE_URL = "https://oeffentlichevergabe.de/ui/de/search?query={query}"
 ERSTLAUF_TAGE = 30
 USER_AGENT = "AusschreibungsCheck/1.0"
@@ -89,11 +90,12 @@ class Bekanntmachung:
     frist: str
     veroeffentlicht: str
     links: list[str]
+    dokument_links: list[str]
     rohtext: str
 
     @property
     def link(self) -> str:
-        for url in self.links:
+        for url in self.dokument_links + self.links:
             if "evergabe-online" in url.lower():
                 return url
         if self.links:
@@ -149,7 +151,10 @@ def aus_release(release: dict) -> Bekanntmachung:
             if isinstance(wert, str) and re.match(r"^DE[0-9A-G]", wert.upper()) and wert.upper() not in regionen:
                 regionen.append(wert.upper())
 
-    frist = ((tender.get("tenderPeriod") or {}).get("endDate")) or ""
+    frist = ((tender.get("tenderPeriod") or {}).get("endDate")) or release.get("_frist") or ""
+    dokument_links = [d["url"] for d in tender.get("documents") or [] if isinstance(d, dict) and d.get("url")]
+    if str(tender.get("submissionMethodDetails", "")).startswith("http"):
+        dokument_links.append(tender["submissionMethodDetails"])
     return Bekanntmachung(
         id=str(release.get("ocid") or release.get("id") or ""),
         titel=str(tender.get("title") or release.get("title") or "").strip(),
@@ -161,6 +166,7 @@ def aus_release(release: dict) -> Bekanntmachung:
         frist=frist[:16].replace("T", " "),
         veroeffentlicht=str(release.get("date") or "")[:10],
         links=alle_urls(release),
+        dokument_links=dokument_links,
         rohtext=json.dumps(release, ensure_ascii=False).lower(),
     )
 
@@ -179,7 +185,8 @@ def releases_aus_json(daten) -> list[dict]:
     return []
 
 
-def releases_aus_zip(inhalt: bytes) -> list[dict]:
+def releases_aus_zip(inhalt: bytes, fristen: dict[str, str] | None = None) -> list[dict]:
+    """Liest alle Releases eines OCDS-Exports; Fristen aus dem eForms-Export werden ergänzt."""
     releases: list[dict] = []
     with zipfile.ZipFile(io.BytesIO(inhalt)) as zf:
         for name in zf.namelist():
@@ -187,10 +194,46 @@ def releases_aus_zip(inhalt: bytes) -> list[dict]:
                 continue
             with zf.open(name) as f:
                 try:
-                    releases.extend(releases_aus_json(json.load(f)))
+                    neue = releases_aus_json(json.load(f))
                 except json.JSONDecodeError:
                     print(f"  Warnung: {name} ist kein gültiges JSON und wird übersprungen.")
+                    continue
+            frist = (fristen or {}).get(Path(name).stem)
+            for r in neue:
+                if frist:
+                    r["_frist"] = frist
+            releases.extend(neue)
     return releases
+
+
+def lokaler_name(element: ET.Element) -> str:
+    return element.tag.rsplit("}", 1)[-1]
+
+
+def frist_aus_eforms(xml: bytes) -> str | None:
+    """Früheste Angebotsfrist (TenderSubmissionDeadlinePeriod) einer eForms-Bekanntmachung."""
+    try:
+        wurzel = ET.fromstring(xml)
+    except ET.ParseError:
+        return None
+    fristen = []
+    for periode in wurzel.iter():
+        if lokaler_name(periode) != "TenderSubmissionDeadlinePeriod":
+            continue
+        werte = {lokaler_name(k): (k.text or "").strip() for k in periode}
+        datum = werte.get("EndDate", "")[:10]
+        if datum:
+            fristen.append(f"{datum}T{werte.get('EndTime', '')[:5]}".rstrip("T"))
+    return min(fristen) if fristen else None
+
+
+def fristen_aus_zip(inhalt: bytes) -> dict[str, str]:
+    fristen: dict[str, str] = {}
+    with zipfile.ZipFile(io.BytesIO(inhalt)) as zf:
+        for name in zf.namelist():
+            if name.lower().endswith(".xml") and (frist := frist_aus_eforms(zf.read(name))):
+                fristen[Path(name).stem] = frist
+    return fristen
 
 
 # --------------------------------------------------------------------------- Abruf
@@ -199,11 +242,11 @@ class AbrufFehler(Exception):
     """Netzwerkproblem: dieser und spätere Tage werden beim nächsten Lauf erneut versucht."""
 
 
-def tagesexport(tag: dt.date, cache: Path) -> bytes | None:
-    datei = cache / f"{tag.isoformat()}.zip"
+def tagesexport(tag: dt.date, cache: Path, format_: str = "ocds.zip") -> bytes | None:
+    datei = cache / f"{tag.isoformat()}.{format_}"
     if datei.exists() and datei.stat().st_size > 0:
         return datei.read_bytes()
-    url = EXPORT_URL.format(day=tag.isoformat())
+    url = EXPORT_URL.format(day=tag.isoformat(), format=format_)
     anfrage = urllib.request.Request(url, headers={"User-Agent": USER_AGENT})
     try:
         with urllib.request.urlopen(anfrage, timeout=120) as antwort:
@@ -229,7 +272,9 @@ class Treffer:
 
 
 def passt_plattform(b: Bekanntmachung, profil: Profil) -> bool:
-    return not profil.plattformen or any(p in b.rohtext for p in profil.plattformen)
+    """Die Plattform steht im Link zu den Vergabeunterlagen (tender.documents)."""
+    links = " ".join(b.dokument_links).lower()
+    return not profil.plattformen or any(p in links for p in profil.plattformen)
 
 
 def bewerten(b: Bekanntmachung, profil: Profil) -> Treffer | None:
@@ -380,11 +425,17 @@ def main(argv: list[str] | None = None) -> int:
                 tage = tage[:i]
                 break
             if inhalt:
+                fristen: dict[str, str] = {}
                 try:
-                    releases.extend(releases_aus_zip(inhalt))
+                    eforms = tagesexport(tag, datenordner / "cache", "eforms.zip")
+                    fristen = fristen_aus_zip(eforms) if eforms else {}
+                except (AbrufFehler, zipfile.BadZipFile) as fehler:
+                    print(f"  {tag}: Fristen nicht verfügbar ({fehler}).")
+                try:
+                    releases.extend(releases_aus_zip(inhalt, fristen))
                 except zipfile.BadZipFile:
                     print(f"  {tag}: Export ist beschädigt und wird übersprungen.")
-                    (datenordner / "cache" / f"{tag.isoformat()}.zip").unlink(missing_ok=True)
+                    (datenordner / "cache" / f"{tag.isoformat()}.ocds.zip").unlink(missing_ok=True)
 
     bekanntmachungen = {}
     for r in releases:
