@@ -3,7 +3,8 @@
 Sucht täglich neue öffentliche Ausschreibungen, die zum Suchprofil passen, und schreibt sie in eine Excel-Liste.
 
 ## Benutzung
-1. Den Ordner mit `AusschreibungsCheck.exe` und `profil_ifs.yaml` an einen festen Ort legen (z. B. Dokumente\AusschreibungsCheck).
+1. `AusschreibungsCheck.exe` in einen festen Ordner legen (z. B. Dokumente\AusschreibungsCheck). Beim ersten Start legt das Programm dort das Suchprofil `profil_ifs.yaml` sowie die Unterordner `daten` und `ergebnisse` an.
+   Für ein Update nur die `.exe` ersetzen; Profil, gespeicherte Tage und Ergebnisse bleiben erhalten.
 2. `AusschreibungsCheck.exe` doppelklicken. Es öffnet sich das Programmfenster.
 3. Plattformen anhaken, Zeitraum wählen, bei Bedarf Schlagwörter anpassen und „Suche starten“ klicken.
 4. Das Programm lädt alle Tage seit dem letzten Lauf (beim ersten Mal die letzten 30 Tage), bewertet die Bekanntmachungen und öffnet danach die Excel-Liste.

@@ -463,8 +463,17 @@ def excel_schreiben(treffer: list[Treffer], pfad: Path, profilname: str) -> None
 # --------------------------------------------------------------------------- Ablauf
 
 def profil_finden(basis: Path) -> Path | None:
+    """Erstes Profil im Programmordner. Fehlt es, wird das mitgelieferte Standardprofil dorthin kopiert,
+    damit Updates (neue .exe) die eigenen Änderungen am Profil nicht überschreiben."""
     profile = sorted(basis.glob("profil_*.yaml"))
-    return profile[0] if profile else None
+    if profile:
+        return profile[0]
+    vorlage = Path(getattr(sys, "_MEIPASS", Path(__file__).resolve().parent)) / "profil_ifs.yaml"
+    if vorlage.exists() and vorlage.parent.resolve() != basis.resolve():
+        ziel = basis / vorlage.name
+        ziel.write_text(vorlage.read_text(encoding="utf-8"), encoding="utf-8")
+        return ziel
+    return None
 
 
 def ausfuehren(

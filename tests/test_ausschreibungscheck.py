@@ -301,3 +301,11 @@ def test_begriffe_speichern_laesst_rest_unveraendert(tmp_path):
         (alt.cpv, alt.regionen, alt.ausschluss, alt.plattformen, alt.mindestpunkte)
     assert "# CPV-Codes" in profil.read_text(encoding="utf-8")
     assert (tmp_path / "profil_ifs.yaml.bak").read_text(encoding="utf-8") == PROFIL.read_text(encoding="utf-8")
+
+
+def test_standardprofil_wird_angelegt(tmp_path):
+    pfad = ac.profil_finden(tmp_path)
+    assert pfad == tmp_path / "profil_ifs.yaml"
+    assert pfad.read_text(encoding="utf-8") == PROFIL.read_text(encoding="utf-8")
+    pfad.write_text(pfad.read_text(encoding="utf-8").replace("mindestpunkte: 10", "mindestpunkte: 12"), encoding="utf-8")
+    assert ac.profil_finden(tmp_path) == pfad and ac.Profil.laden(pfad).mindestpunkte == 12

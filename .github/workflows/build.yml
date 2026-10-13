@@ -26,14 +26,13 @@ jobs:
         run: python -m pytest -q
 
       - name: .exe bauen
-        run: pyinstaller --onefile --windowed --name AusschreibungsCheck gui.py
+        run: pyinstaller --onefile --windowed --name AusschreibungsCheck --add-data "profil_ifs.yaml;." gui.py
 
       - name: Paket zusammenstellen
         shell: pwsh
         run: |
           New-Item -ItemType Directory -Force paket | Out-Null
           Copy-Item dist/AusschreibungsCheck.exe paket/
-          Copy-Item profil_*.yaml paket/
           Copy-Item ANLEITUNG.md paket/
           Compress-Archive -Path paket/* -DestinationPath AusschreibungsCheck.zip
 
