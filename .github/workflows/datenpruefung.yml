@@ -16,7 +16,6 @@ jobs:
           python-version: "3.12"
       - run: pip install -r requirements.txt
       - run: python werkzeuge/datenpruefung.py
-      - run: python werkzeuge/plattformstatistik.py 14
       - name: Echter Suchlauf über 14 Tage, alle Profil-Plattformen
         run: |
           python ausschreibungscheck.py --von "$(date -d '14 days ago' +%F)" --nicht-oeffnen

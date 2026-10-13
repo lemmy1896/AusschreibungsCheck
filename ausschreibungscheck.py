@@ -14,6 +14,7 @@ import json
 import os
 import re
 import sys
+import time
 import urllib.error
 import urllib.request
 import zipfile
@@ -278,20 +279,37 @@ class AbrufFehler(Exception):
     """Netzwerkproblem: dieser und spätere Tage werden beim nächsten Lauf erneut versucht."""
 
 
+# Der Bundesdienst weist zu schnelle Abrufe ab; deshalb Pausen und Wiederholungen.
+PAUSE_ZWISCHEN_ABRUFEN = 2.0
+WARTEZEITEN_BEI_FEHLER = (10, 30, 60, 120)
+_letzter_abruf = 0.0
+
+
 def tagesexport(tag: dt.date, cache: Path, format_: str = "ocds.zip", log=print) -> bytes | None:
+    global _letzter_abruf
     datei = cache / f"{tag.isoformat()}.{format_}"
     if datei.exists() and datei.stat().st_size > 0:
         return datei.read_bytes()
     url = EXPORT_URL.format(day=tag.isoformat(), format=format_)
     anfrage = urllib.request.Request(url, headers={"User-Agent": USER_AGENT})
-    try:
-        with urllib.request.urlopen(anfrage, timeout=120) as antwort:
-            inhalt = antwort.read()
-    except urllib.error.HTTPError as fehler:
-        log(f"  {tag}: kein Export verfügbar (HTTP {fehler.code}).")
-        return None
-    except (urllib.error.URLError, TimeoutError) as fehler:
-        raise AbrufFehler(f"{tag}: Abruf fehlgeschlagen ({fehler})") from fehler
+    for versuch, wartezeit in enumerate((*WARTEZEITEN_BEI_FEHLER, None), start=1):
+        time.sleep(max(0.0, _letzter_abruf + PAUSE_ZWISCHEN_ABRUFEN - time.monotonic()))
+        _letzter_abruf = time.monotonic()
+        try:
+            with urllib.request.urlopen(anfrage, timeout=120) as antwort:
+                inhalt = antwort.read()
+            break
+        except urllib.error.HTTPError as fehler:
+            if fehler.code not in (429, 500, 502, 503, 504):
+                log(f"  {tag}: kein Export verfügbar (HTTP {fehler.code}).")
+                return None
+            grund = f"HTTP {fehler.code}"
+        except (urllib.error.URLError, TimeoutError, ConnectionError) as fehler:
+            grund = str(getattr(fehler, "reason", fehler))
+        if wartezeit is None:
+            raise AbrufFehler(f"{tag}: Abruf nach {versuch} Versuchen fehlgeschlagen ({grund})")
+        log(f"  Server antwortet nicht ({grund}), neuer Versuch in {wartezeit} s ...")
+        time.sleep(wartezeit)
     cache.mkdir(parents=True, exist_ok=True)
     datei.write_bytes(inhalt)
     return inhalt

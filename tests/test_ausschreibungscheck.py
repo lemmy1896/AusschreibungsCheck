@@ -212,3 +212,36 @@ def test_fenster_startet(tmp_path):
     assert len(plattformen) == 5 and not alle and begriffe == "Starkregen: 7"
     root.update()
     root.destroy()
+
+
+def test_abruf_wiederholt_bei_abweisung(tmp_path, monkeypatch):
+    import urllib.error
+    aufrufe = []
+
+    class Antwort:
+        def __enter__(self):
+            return self
+        def __exit__(self, *a):
+            return False
+        def read(self):
+            return b"zipdaten"
+
+    def urlopen(anfrage, timeout):
+        aufrufe.append(anfrage.full_url)
+        if len(aufrufe) < 3:
+            raise urllib.error.URLError(ConnectionRefusedError(111, "Connection refused"))
+        return Antwort()
+
+    monkeypatch.setattr(ac.urllib.request, "urlopen", urlopen)
+    monkeypatch.setattr(ac.time, "sleep", lambda s: None)
+    meldungen = []
+    assert ac.tagesexport(dt.date(2026, 10, 1), tmp_path, log=meldungen.append) == b"zipdaten"
+    assert len(aufrufe) == 3 and len(meldungen) == 2
+    assert (tmp_path / "2026-10-01.ocds.zip").read_bytes() == b"zipdaten"
+
+    aufrufe.clear()
+    monkeypatch.setattr(ac.urllib.request, "urlopen",
+                        lambda a, timeout: (_ for _ in ()).throw(urllib.error.URLError("weg")))
+    import pytest
+    with pytest.raises(ac.AbrufFehler):
+        ac.tagesexport(dt.date(2026, 10, 2), tmp_path, log=meldungen.append)
