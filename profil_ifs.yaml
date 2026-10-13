@@ -4,11 +4,20 @@
 
 name: ifs Hannover
 
-# Nur Bekanntmachungen dieser Plattformen berücksichtigen.
-# Erkannt wird die Plattform an Links in der Bekanntmachung (z. B. zu den Vergabeunterlagen).
-# Leere Liste [] = alle Plattformen.
+# Plattformen, die durchsucht werden (im Programmfenster einzeln an- und abwählbar).
+# Erkannt wird die Plattform am Link zu den Vergabeunterlagen. Links: Anzeigename, rechts die Internetadresse(n).
+# Auswahl nach Häufigkeit im Bundes-Export (14 Tage bis 12.10.2026, rund 11.000 Bekanntmachungen).
 plattformen:
-  - evergabe-online.de
+  e-Vergabe des Bundes: evergabe-online.de        # 4,8 %
+  DTVP: dtvp.de                                   # 5,8 %
+  evergabe.de: evergabe.de                        # 5,9 %
+  subreport ELViS: [subreport-elvis.de, subreport.de]  # 7,8 %
+  RIB meinauftrag: meinauftrag.rib.de             # 3,9 %
+  # Weitere Kandidaten, bei Bedarf einkommentieren:
+  # Vergabe Niedersachsen: vergabe.niedersachsen.de  # 2,2 %
+  # Deutsche eVergabe: deutsche-evergabe.de          # 4,3 %
+  # Vergabemarktplatz Brandenburg: vergabemarktplatz.brandenburg.de
+  # evergabe.nrw: evergabe.nrw.de
 
 # Ab dieser Punktzahl erscheint eine Bekanntmachung in der Excel-Liste.
 mindestpunkte: 10

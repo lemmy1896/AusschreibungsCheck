@@ -44,7 +44,7 @@ def basisordner() -> Path:
 @dataclass
 class Profil:
     name: str
-    plattformen: list[str]
+    plattformen: dict[str, list[str]]  # Anzeigename -> Hosts der Plattform
     mindestpunkte: int
     begriffe: dict[str, int]
     cpv: dict[str, int]
@@ -57,15 +57,48 @@ class Profil:
         daten = yaml.safe_load(pfad.read_text(encoding="utf-8")) or {}
         profil = cls(
             name=str(daten.get("name", pfad.stem)),
-            plattformen=[str(p).lower() for p in daten.get("plattformen") or []],
+            plattformen=plattformen_lesen(daten.get("plattformen")),
             mindestpunkte=int(daten.get("mindestpunkte", 10)),
             begriffe={str(k): int(v) for k, v in (daten.get("begriffe") or {}).items()},
             cpv={str(k): int(v) for k, v in (daten.get("cpv") or {}).items()},
             regionen={str(k).upper(): int(v) for k, v in (daten.get("regionen") or {}).items()},
             ausschluss=[str(a) for a in daten.get("ausschluss") or []],
         )
-        profil._muster = [(b, begriff_muster(b), p) for b, p in profil.begriffe.items()]
+        profil._muster_bauen()
         return profil
+
+    def _muster_bauen(self) -> None:
+        self._muster = [(b, begriff_muster(b), p) for b, p in self.begriffe.items()]
+
+    def mit_zusatzbegriffen(self, zusatz: dict[str, int]) -> "Profil":
+        """Ergänzt Schlagwörter aus dem Programmfenster; vorhandene Gewichte werden überschrieben."""
+        self.begriffe = {**self.begriffe, **zusatz}
+        self._muster_bauen()
+        return self
+
+
+def plattformen_lesen(eintrag) -> dict[str, list[str]]:
+    if not eintrag:
+        return {}
+    if isinstance(eintrag, list):
+        return {str(h): [str(h).lower()] for h in eintrag}
+    return {str(name): [str(h).lower() for h in (hosts if isinstance(hosts, list) else [hosts])]
+            for name, hosts in eintrag.items()}
+
+
+def zusatzbegriffe_lesen(text: str, standardgewicht: int) -> dict[str, int]:
+    """Eine Zeile pro Schlagwort, optional mit Gewicht: "Starkregen" oder "Starkregen: 12"."""
+    begriffe: dict[str, int] = {}
+    for zeile in text.splitlines():
+        zeile = zeile.split("#", 1)[0].strip()
+        if not zeile:
+            continue
+        treffer = re.match(r"^(.*?)\s*[:=]\s*(\d+)$", zeile)
+        if treffer and treffer.group(1):
+            begriffe[treffer.group(1)] = int(treffer.group(2))
+        else:
+            begriffe[zeile] = standardgewicht
+    return begriffe
 
 
 def begriff_muster(begriff: str) -> re.Pattern:
@@ -93,14 +126,17 @@ class Bekanntmachung:
     dokument_links: list[str]
     rohtext: str
 
+    plattform: str = ""
+
     @property
     def link(self) -> str:
-        for url in self.dokument_links + self.links:
-            if "evergabe-online" in url.lower():
-                return url
-        if self.links:
-            return self.links[0]
+        if self.dokument_links:
+            return self.dokument_links[0]
         return NOTICE_URL.format(query=urllib.request.quote(self.titel[:80]))
+
+    @property
+    def hosts(self) -> set[str]:
+        return {re.sub(r"^https?://([^/:?#]+).*", r"\1", u.strip()).lower() for u in self.dokument_links}
 
 
 def alle_dicts(obj):
@@ -242,7 +278,7 @@ class AbrufFehler(Exception):
     """Netzwerkproblem: dieser und spätere Tage werden beim nächsten Lauf erneut versucht."""
 
 
-def tagesexport(tag: dt.date, cache: Path, format_: str = "ocds.zip") -> bytes | None:
+def tagesexport(tag: dt.date, cache: Path, format_: str = "ocds.zip", log=print) -> bytes | None:
     datei = cache / f"{tag.isoformat()}.{format_}"
     if datei.exists() and datei.stat().st_size > 0:
         return datei.read_bytes()
@@ -252,7 +288,7 @@ def tagesexport(tag: dt.date, cache: Path, format_: str = "ocds.zip") -> bytes |
         with urllib.request.urlopen(anfrage, timeout=120) as antwort:
             inhalt = antwort.read()
     except urllib.error.HTTPError as fehler:
-        print(f"  {tag}: kein Export verfügbar (HTTP {fehler.code}).")
+        log(f"  {tag}: kein Export verfügbar (HTTP {fehler.code}).")
         return None
     except (urllib.error.URLError, TimeoutError) as fehler:
         raise AbrufFehler(f"{tag}: Abruf fehlgeschlagen ({fehler})") from fehler
@@ -271,10 +307,17 @@ class Treffer:
     neu: bool = True
 
 
-def passt_plattform(b: Bekanntmachung, profil: Profil) -> bool:
+def plattform_von(b: Bekanntmachung, plattformen: dict[str, list[str]]) -> str | None:
     """Die Plattform steht im Link zu den Vergabeunterlagen (tender.documents)."""
-    links = " ".join(b.dokument_links).lower()
-    return not profil.plattformen or any(p in links for p in profil.plattformen)
+    for name, hosts in plattformen.items():
+        for host in hosts:
+            if any(h == host or h.endswith("." + host) for h in b.hosts):
+                return name
+    return None
+
+
+def passt_plattform(b: Bekanntmachung, profil: Profil) -> bool:
+    return not profil.plattformen or plattform_von(b, profil.plattformen) is not None
 
 
 def bewerten(b: Bekanntmachung, profil: Profil) -> Treffer | None:
@@ -335,7 +378,7 @@ def zu_pruefende_tage(zustand: dict, heute: dt.date, von: dt.date | None) -> lis
 # --------------------------------------------------------------------------- Excel
 
 SPALTEN = [
-    ("Neu", 6), ("Punkte", 8), ("Titel", 60), ("Vergabestelle", 35), ("Ort", 22),
+    ("Neu", 6), ("Punkte", 8), ("Titel", 60), ("Plattform", 18), ("Vergabestelle", 35), ("Ort", 22),
     ("Frist", 17), ("Veröffentlicht", 13), ("CPV", 22), ("Treffergründe", 45), ("Link", 50),
 ]
 
@@ -353,7 +396,7 @@ def excel_schreiben(treffer: list[Treffer], pfad: Path, profilname: str) -> None
     for t in treffer:
         b = t.bekanntmachung
         ws.append([
-            "neu" if t.neu else "", t.punkte, b.titel, b.vergabestelle, b.ort, b.frist,
+            "neu" if t.neu else "", t.punkte, b.titel, b.plattform, b.vergabestelle, b.ort, b.frist,
             b.veroeffentlicht, ", ".join(b.cpv), ", ".join(t.gruende), b.link,
         ])
         zeile = ws.max_row
@@ -379,25 +422,31 @@ def excel_schreiben(treffer: list[Treffer], pfad: Path, profilname: str) -> None
 
 # --------------------------------------------------------------------------- Ablauf
 
-def main(argv: list[str] | None = None) -> int:
-    parser = argparse.ArgumentParser(description="Sucht passende Ausschreibungen.")
-    parser.add_argument("--profil", help="Pfad zur Profil-Datei (Standard: profil_*.yaml im Programmordner)")
-    parser.add_argument("--von", help="Ab diesem Tag prüfen (JJJJ-MM-TT), statt seit dem letzten Lauf")
-    parser.add_argument("--zip", nargs="*", help="Lokale Export-Dateien statt Download verwenden (zum Testen)")
-    parser.add_argument("--nicht-oeffnen", action="store_true", help="Excel-Liste am Ende nicht öffnen")
-    args = parser.parse_args(argv)
+def profil_finden(basis: Path) -> Path | None:
+    profile = sorted(basis.glob("profil_*.yaml"))
+    return profile[0] if profile else None
 
-    basis = basisordner()
-    if args.profil:
-        profilpfad = Path(args.profil)
-    else:
-        profile = sorted(basis.glob("profil_*.yaml"))
-        if not profile:
-            print(f"Keine Profil-Datei (profil_*.yaml) in {basis} gefunden.")
-            return 1
-        profilpfad = profile[0]
+
+def ausfuehren(
+    profilpfad: Path,
+    basis: Path,
+    plattformen: list[str] | None = None,
+    alle_plattformen: bool = False,
+    zusatzbegriffe: dict[str, int] | None = None,
+    von: dt.date | None = None,
+    zips: list[Path] | None = None,
+    log=print,
+) -> Path:
+    """Führt eine Suche aus und gibt den Pfad der Excel-Liste zurück.
+
+    plattformen: Anzeigenamen aus dem Profil (None = alle im Profil genannten).
+    alle_plattformen: auch Bekanntmachungen anderer oder unbekannter Plattformen.
+    """
     profil = Profil.laden(profilpfad)
-    print(f"Profil: {profil.name} ({profilpfad.name})")
+    if zusatzbegriffe:
+        profil.mit_zusatzbegriffen(zusatzbegriffe)
+    auswahl = {n: h for n, h in profil.plattformen.items() if plattformen is None or n in plattformen}
+    log(f"Profil: {profil.name} ({profilpfad.name})")
 
     datenordner = basis / "daten"
     datenordner.mkdir(exist_ok=True)
@@ -406,51 +455,52 @@ def main(argv: list[str] | None = None) -> int:
     gesehen = set(zustand.get("gesehen", []))
 
     releases: list[dict] = []
-    if args.zip:
-        for z in args.zip:
-            print(f"Lese {z} ...")
+    tage: list[dt.date] = []
+    if zips:
+        for z in zips:
+            log(f"Lese {z} ...")
             releases.extend(releases_aus_zip(Path(z).read_bytes()))
-        tage = []
     else:
-        von = dt.date.fromisoformat(args.von) if args.von else None
         tage = zu_pruefende_tage(zustand, dt.date.today(), von)
         if not tage:
-            print("Seit dem letzten Lauf ist kein neuer Tag dazugekommen.")
+            log("Seit dem letzten Lauf ist kein neuer Tag dazugekommen.")
         for i, tag in enumerate(tage):
-            print(f"Lade Bekanntmachungen vom {tag:%d.%m.%Y} ...")
+            log(f"Lade Bekanntmachungen vom {tag:%d.%m.%Y} ...")
             try:
-                inhalt = tagesexport(tag, datenordner / "cache")
+                inhalt = tagesexport(tag, datenordner / "cache", log=log)
             except AbrufFehler as fehler:
-                print(f"  {fehler}. Ab hier wird beim nächsten Lauf erneut geladen.")
+                log(f"  {fehler}. Ab hier wird beim nächsten Lauf erneut geladen.")
                 tage = tage[:i]
                 break
             if inhalt:
                 fristen: dict[str, str] = {}
                 try:
-                    eforms = tagesexport(tag, datenordner / "cache", "eforms.zip")
+                    eforms = tagesexport(tag, datenordner / "cache", "eforms.zip", log=log)
                     fristen = fristen_aus_zip(eforms) if eforms else {}
                 except (AbrufFehler, zipfile.BadZipFile) as fehler:
-                    print(f"  {tag}: Fristen nicht verfügbar ({fehler}).")
+                    log(f"  {tag}: Fristen nicht verfügbar ({fehler}).")
                 try:
                     releases.extend(releases_aus_zip(inhalt, fristen))
                 except zipfile.BadZipFile:
-                    print(f"  {tag}: Export ist beschädigt und wird übersprungen.")
+                    log(f"  {tag}: Export ist beschädigt und wird übersprungen.")
                     (datenordner / "cache" / f"{tag.isoformat()}.ocds.zip").unlink(missing_ok=True)
 
-    bekanntmachungen = {}
+    bekanntmachungen: dict[str, Bekanntmachung] = {}
     for r in releases:
         b = aus_release(r)
         bekanntmachungen[b.id or b.titel] = b
-    plattform = [b for b in bekanntmachungen.values() if passt_plattform(b, profil)]
-    print(f"{len(bekanntmachungen)} Bekanntmachungen gelesen, davon {len(plattform)} von "
-          f"{', '.join(profil.plattformen) or 'allen Plattformen'}.")
-    if bekanntmachungen and profil.plattformen and not plattform:
-        print("Warnung: Keine Bekanntmachung ließ sich der gewünschten Plattform zuordnen.")
+    ausgewaehlt = []
+    for b in bekanntmachungen.values():
+        b.plattform = plattform_von(b, profil.plattformen) or ""
+        if alle_plattformen or not profil.plattformen or plattform_von(b, auswahl):
+            ausgewaehlt.append(b)
+    beschreibung = "allen Plattformen" if alle_plattformen else ", ".join(auswahl) or "keiner Plattform"
+    log(f"{len(bekanntmachungen)} Bekanntmachungen gelesen, davon {len(ausgewaehlt)} von {beschreibung}.")
 
     heute = dt.date.today().isoformat()
-    offen = [b for b in plattform if not b.frist or b.frist[:10] >= heute]
-    if len(offen) < len(plattform):
-        print(f"{len(plattform) - len(offen)} Bekanntmachungen mit abgelaufener Frist ausgelassen.")
+    offen = [b for b in ausgewaehlt if not b.frist or b.frist[:10] >= heute]
+    if len(offen) < len(ausgewaehlt):
+        log(f"{len(ausgewaehlt) - len(offen)} Bekanntmachungen mit abgelaufener Frist ausgelassen.")
     treffer = [t for b in offen if (t := bewerten(b, profil))]
     for t in treffer:
         t.neu = t.bekanntmachung.id not in gesehen
@@ -458,23 +508,53 @@ def main(argv: list[str] | None = None) -> int:
 
     ergebnisse = basis / "ergebnisse"
     ergebnisse.mkdir(exist_ok=True)
-    excel = ergebnisse / f"Treffer_{profilpfad.stem}_{dt.datetime.now():%Y-%m-%d_%H%M}.xlsx"
+    excel = ergebnisse / f"Treffer_{profilpfad.stem}_{dt.datetime.now():%Y-%m-%d_%H%M%S}.xlsx"
     excel_schreiben(treffer, excel, profil.name)
-    print(f"{len(treffer)} Treffer, davon {sum(t.neu for t in treffer)} neu. Liste: {excel}")
+    log(f"{len(treffer)} Treffer, davon {sum(t.neu for t in treffer)} neu.")
+    log(f"Liste: {excel}")
 
     gesehen.update(t.bekanntmachung.id for t in treffer)
     zustand["gesehen"] = sorted(gesehen)
     if tage:
-        zustand["letzter_tag"] = tage[-1].isoformat()
+        zustand["letzter_tag"] = max(tage[-1].isoformat(), zustand.get("letzter_tag") or "")
     zustand_speichern(zustandspfad, zustand)
+    return excel
 
-    if not args.nicht_oeffnen and hasattr(os, "startfile"):
-        os.startfile(excel)  # type: ignore[attr-defined]
+
+def oeffnen(pfad: Path) -> None:
+    if hasattr(os, "startfile"):
+        os.startfile(pfad)  # type: ignore[attr-defined]
+
+
+def main(argv: list[str] | None = None) -> int:
+    parser = argparse.ArgumentParser(description="Sucht passende Ausschreibungen.")
+    parser.add_argument("--profil", help="Pfad zur Profil-Datei (Standard: profil_*.yaml im Programmordner)")
+    parser.add_argument("--von", help="Ab diesem Tag prüfen (JJJJ-MM-TT), statt seit dem letzten Lauf")
+    parser.add_argument("--plattform", action="append", help="Nur diese Plattform (Name aus dem Profil), mehrfach möglich")
+    parser.add_argument("--alle-plattformen", action="store_true", help="Auch andere und unbekannte Plattformen")
+    parser.add_argument("--begriff", action="append", default=[], help='Zusätzliches Schlagwort, z. B. "Starkregen: 12"')
+    parser.add_argument("--zip", nargs="*", help="Lokale Export-Dateien statt Download verwenden (zum Testen)")
+    parser.add_argument("--nicht-oeffnen", action="store_true", help="Excel-Liste am Ende nicht öffnen")
+    args = parser.parse_args(argv)
+
+    basis = basisordner()
+    profilpfad = Path(args.profil) if args.profil else profil_finden(basis)
+    if profilpfad is None:
+        print(f"Keine Profil-Datei (profil_*.yaml) in {basis} gefunden.")
+        return 1
+    mindest = Profil.laden(profilpfad).mindestpunkte
+    excel = ausfuehren(
+        profilpfad, basis,
+        plattformen=args.plattform,
+        alle_plattformen=args.alle_plattformen,
+        zusatzbegriffe=zusatzbegriffe_lesen("\n".join(args.begriff), mindest),
+        von=dt.date.fromisoformat(args.von) if args.von else None,
+        zips=[Path(z) for z in args.zip] if args.zip else None,
+    )
+    if not args.nicht_oeffnen:
+        oeffnen(excel)
     return 0
 
 
 if __name__ == "__main__":
-    code = main()
-    if getattr(sys, "frozen", False) and not any(a.startswith("--") for a in sys.argv[1:]):
-        input("\nFertig. Enter drücken zum Schließen ...")
-    sys.exit(code)
+    sys.exit(main())

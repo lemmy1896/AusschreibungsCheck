@@ -150,3 +150,65 @@ def test_plattform_nur_aus_unterlagenlink():
     r = release("y", "x", plattform="vergabe.vmstart.de")
     r["parties"][0]["contactPoint"] = {"url": "https://www.evergabe-online.de"}
     assert not ac.passt_plattform(ac.aus_release(r), profil)
+
+
+def test_plattformen_nach_host():
+    profil = ac.Profil.laden(PROFIL)
+    def plattform(url):
+        r = release("p", "x")
+        r["tender"]["submissionMethodDetails"] = url
+        return ac.plattform_von(ac.aus_release(r), profil.plattformen)
+    assert plattform("https://www.evergabe.de/unterlagen/1") == "evergabe.de"
+    assert plattform("https://www.deutsche-evergabe.de/dashboards/x") is None
+    assert plattform("https://www.dtvp.de/Satellite/notice/X/documents") == "DTVP"
+    assert plattform("https://www.subreport.de/E33255198") == "subreport ELViS"
+    assert plattform("https://www.meinauftrag.rib.de/public/x") == "RIB meinauftrag"
+    assert plattform("https://www.evergabe-online.de/tenderdetails.html?id=1") == "e-Vergabe des Bundes"
+
+
+def test_zusatzbegriffe_lesen():
+    text = "Starkregen\nKlärschlamm: 25\n  # Kommentar\n\nÜberflutung = 3"
+    assert ac.zusatzbegriffe_lesen(text, 10) == {"Starkregen": 10, "Klärschlamm": 25, "Überflutung": 3}
+
+
+def test_auswahl_und_zusatzbegriffe(tmp_path):
+    profil = tmp_path / "profil_ifs.yaml"
+    profil.write_text(PROFIL.read_text(encoding="utf-8"), encoding="utf-8")
+    zipdatei = tmp_path / "x.zip"
+    zipdatei.write_bytes(export_zip([
+        release("a", "Regenklärbecken Nord", plattform="dtvp.de"),
+        release("b", "Regenklärbecken Süd"),
+        release("c", "Klärschlammverwertung", cpv="90513000", region="DE1"),
+        release("d", "Retentionsbodenfilter", plattform="vergabe.niedersachsen.de"),
+    ]))
+
+    def titel(excel):
+        return sorted(z[2] for z in load_workbook(excel)["Treffer"].iter_rows(min_row=2, values_only=True))
+
+    excel = ac.ausfuehren(profil, tmp_path, plattformen=["DTVP"], zips=[zipdatei], log=lambda _: None)
+    assert titel(excel) == ["Regenklärbecken Nord"]
+    excel = ac.ausfuehren(profil, tmp_path, zusatzbegriffe={"Klärschlamm": 10}, zips=[zipdatei], log=lambda _: None)
+    assert titel(excel) == ["Klärschlammverwertung", "Regenklärbecken Nord", "Regenklärbecken Süd"]
+    excel = ac.ausfuehren(profil, tmp_path, plattformen=[], alle_plattformen=True, zips=[zipdatei], log=lambda _: None)
+    assert titel(excel) == ["Regenklärbecken Nord", "Regenklärbecken Süd", "Retentionsbodenfilter"]
+    plattformen = {z[2]: z[3] for z in load_workbook(excel)["Treffer"].iter_rows(min_row=2, values_only=True)}
+    assert plattformen == {"Regenklärbecken Nord": "DTVP", "Regenklärbecken Süd": "e-Vergabe des Bundes",
+                           "Retentionsbodenfilter": None}
+
+
+def test_fenster_startet(tmp_path):
+    import pytest
+    tk = pytest.importorskip("tkinter")
+    import gui
+    try:
+        root = tk.Tk()
+    except tk.TclError:
+        pytest.skip("keine Anzeige verfügbar")
+    profil = tmp_path / "profil_ifs.yaml"
+    profil.write_text(PROFIL.read_text(encoding="utf-8"), encoding="utf-8")
+    fenster = gui.Fenster(root, tmp_path, profil)
+    fenster.begriffe_text.insert("1.0", "Starkregen: 7")
+    plattformen, alle, begriffe = fenster.auswahl()
+    assert len(plattformen) == 5 and not alle and begriffe == "Starkregen: 7"
+    root.update()
+    root.destroy()

@@ -26,7 +26,7 @@ jobs:
         run: python -m pytest -q
 
       - name: .exe bauen
-        run: pyinstaller --onefile --name AusschreibungsCheck ausschreibungscheck.py
+        run: pyinstaller --onefile --windowed --name AusschreibungsCheck gui.py
 
       - name: Paket zusammenstellen
         shell: pwsh
