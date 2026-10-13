@@ -1,0 +1,96 @@
+# Suchprofil: ifs Hannover (Ingenieurgesellschaft für Stadthydrologie)
+# Abgeleitet aus den Referenzen auf www.ifs-hannover.de (Stand 10/2026).
+# Diese Datei kann mit jedem Texteditor geändert werden. Zeilen mit # sind Kommentare.
+
+name: ifs Hannover
+
+# Nur Bekanntmachungen dieser Plattformen berücksichtigen.
+# Erkannt wird die Plattform an Links in der Bekanntmachung (z. B. zu den Vergabeunterlagen).
+# Leere Liste [] = alle Plattformen.
+plattformen:
+  - evergabe-online.de
+
+# Ab dieser Punktzahl erscheint eine Bekanntmachung in der Excel-Liste.
+mindestpunkte: 10
+
+# Suchbegriffe in Titel und Beschreibung. Groß-/Kleinschreibung egal.
+# Ein Begriff zählt pro Bekanntmachung nur einmal.
+begriffe:
+  # Generelle Planung
+  Generalentwässerungsplan: 15
+  Generalentwässerungsplanung: 15
+  GEP: 8
+  Kanalnetzberechnung: 15
+  hydraulische Berechnung: 10
+  hydrodynamische: 10
+  Kanalnetz: 5
+  Entwässerungskonzept: 12
+  Regenwasserbewirtschaftung: 15
+  Niederschlagswasserbeseitigung: 10
+  Machbarkeitsstudie: 4
+  Starkregen: 8
+  Überflutungsnachweis: 10
+  # Objektplanung Regenwasser
+  Regenrückhaltebecken: 12
+  Regenklärbecken: 12
+  Retentionsbodenfilter: 15
+  Bodenfilter: 8
+  Versickerungsbecken: 10
+  Versickerung: 5
+  Regenwasserbehandlung: 12
+  Sedimentationsanlage: 10
+  RiStWag: 10
+  Mischwasser: 8
+  Fremdwasser: 8
+  Regenüberlaufbecken: 10
+  # Umweltgutachten
+  Wasserrahmenrichtlinie: 12
+  WRRL: 10
+  Fachbeitrag: 4
+  Tausalz: 12
+  hydrologisches Gutachten: 12
+  Hydrologie: 6
+  Beckenbuch: 12
+  # Hydrometrie
+  Hydrometrie: 15
+  Durchflussmessung: 12
+  Abflussmessung: 12
+  Wasserstandsmessung: 8
+  Messkampagne: 8
+  Messprogramm: 8
+  SüwV: 12
+  Selbstüberwachung: 8
+  Probenahme: 6
+  Grundwassermessung: 8
+  Monitoring: 3
+  # Allgemein
+  Stadtentwässerung: 6
+  Entwässerung: 4
+  Abwasser: 3
+  Regenwasser: 5
+  Niederschlagswasser: 5
+
+# CPV-Codes (Anfang des Codes reicht, z. B. 713 trifft alle 713xxxxx).
+cpv:
+  "71311000": 6   # Beratung im Bereich Tiefbau
+  "71322000": 6   # Technische Planung von Tiefbauten
+  "71335000": 5   # Technische Studien
+  "71313000": 5   # Beratung im Bereich Umwelttechnik
+  "90713100": 8   # Beratung bei Wasserversorgung und Abwasser
+  "73110000": 3   # Forschung
+  "71351000": 3   # Geologische, geophysikalische und andere wissenschaftliche Erkundung
+
+# Bonuspunkte für Regionen (NUTS-Code-Anfang). Bundesweit wird trotzdem gesucht.
+regionen:
+  DE9: 4   # Niedersachsen
+  DE3: 4   # Berlin
+  DE6: 4   # Hamburg
+  DEA: 3   # Nordrhein-Westfalen
+  DE4: 3   # Brandenburg
+
+# Enthält Titel oder Beschreibung eines dieser Wörter, wird die Bekanntmachung verworfen.
+ausschluss:
+  - Reinigungsleistungen
+  - Gebäudereinigung
+  - Kanalreinigung
+  - Winterdienst

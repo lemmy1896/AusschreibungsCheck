@@ -1,0 +1,50 @@
+name: Windows-Programm bauen
+
+on:
+  push:
+    branches: [main]
+    tags: ["v*"]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Abhängigkeiten installieren
+        run: pip install -r requirements-dev.txt
+
+      - name: Tests
+        run: python -m pytest -q
+
+      - name: .exe bauen
+        run: pyinstaller --onefile --name AusschreibungsCheck ausschreibungscheck.py
+
+      - name: Paket zusammenstellen
+        shell: pwsh
+        run: |
+          New-Item -ItemType Directory -Force paket | Out-Null
+          Copy-Item dist/AusschreibungsCheck.exe paket/
+          Copy-Item profil_*.yaml paket/
+          Copy-Item ANLEITUNG.md paket/
+          Compress-Archive -Path paket/* -DestinationPath AusschreibungsCheck.zip
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: AusschreibungsCheck
+          path: paket/
+
+      - name: Release veröffentlichen
+        if: startsWith(github.ref, 'refs/tags/v')
+        uses: softprops/action-gh-release@v2
+        with:
+          files: AusschreibungsCheck.zip
