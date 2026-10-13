@@ -503,10 +503,11 @@ def ausfuehren(
                     log(f"  {tag}: Export ist beschädigt und wird übersprungen.")
                     (datenordner / "cache" / f"{tag.isoformat()}.ocds.zip").unlink(missing_ok=True)
 
-    bekanntmachungen: dict[str, Bekanntmachung] = {}
-    for r in releases:
+    # Änderungsbekanntmachungen erscheinen mit eigener Kennung; die jüngste Fassung gewinnt.
+    bekanntmachungen: dict[tuple[str, str], Bekanntmachung] = {}
+    for r in sorted(releases, key=lambda r: str(r.get("date") or "")):
         b = aus_release(r)
-        bekanntmachungen[b.id or b.titel] = b
+        bekanntmachungen[(b.titel.lower(), b.vergabestelle.lower())] = b
     ausgewaehlt = []
     for b in bekanntmachungen.values():
         b.plattform = plattform_von(b, profil.plattformen) or ""

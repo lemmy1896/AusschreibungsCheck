@@ -245,3 +245,15 @@ def test_abruf_wiederholt_bei_abweisung(tmp_path, monkeypatch):
     import pytest
     with pytest.raises(ac.AbrufFehler):
         ac.tagesexport(dt.date(2026, 10, 2), tmp_path, log=meldungen.append)
+
+
+def test_aenderungsbekanntmachung_nur_einmal(tmp_path):
+    profil = tmp_path / "profil_ifs.yaml"
+    profil.write_text(PROFIL.read_text(encoding="utf-8"), encoding="utf-8")
+    erst, aenderung = release("a1", "Regenklärbecken Nord"), release("a2", "Regenklärbecken Nord")
+    aenderung["date"] = "2026-10-13T08:00:00Z"
+    zipdatei = tmp_path / "x.zip"
+    zipdatei.write_bytes(export_zip([aenderung, erst]))
+    excel = ac.ausfuehren(profil, tmp_path, zips=[zipdatei], log=lambda _: None)
+    zeilen = list(load_workbook(excel)["Treffer"].iter_rows(min_row=2, values_only=True))
+    assert len(zeilen) == 1 and zeilen[0][7] == "2026-10-13"
