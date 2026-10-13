@@ -447,7 +447,11 @@ def main(argv: list[str] | None = None) -> int:
     if bekanntmachungen and profil.plattformen and not plattform:
         print("Warnung: Keine Bekanntmachung ließ sich der gewünschten Plattform zuordnen.")
 
-    treffer = [t for b in plattform if (t := bewerten(b, profil))]
+    heute = dt.date.today().isoformat()
+    offen = [b for b in plattform if not b.frist or b.frist[:10] >= heute]
+    if len(offen) < len(plattform):
+        print(f"{len(plattform) - len(offen)} Bekanntmachungen mit abgelaufener Frist ausgelassen.")
+    treffer = [t for b in offen if (t := bewerten(b, profil))]
     for t in treffer:
         t.neu = t.bekanntmachung.id not in gesehen
     treffer.sort(key=lambda t: (not t.neu, -t.punkte))

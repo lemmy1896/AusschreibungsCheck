@@ -25,7 +25,7 @@ def release(ocid, titel, beschreibung="", cpv="71322000", region="DE929", plattf
             "title": titel,
             "description": beschreibung,
             "items": [{"classification": {"scheme": "CPV", "id": cpv}}],
-            "tenderPeriod": {"endDate": "2026-11-05T12:00:00+01:00"},
+            "tenderPeriod": {"endDate": "2099-11-05T12:00:00+01:00"},
             "submissionMethodDetails": f"https://www.{plattform}/tenderdetails.html?id=123",
         },
     }
@@ -48,7 +48,7 @@ def test_bewertung_trifft_fachthema():
     assert "Region DE9" in t.gruende
     assert b.link.startswith("https://www.evergabe-online.de/")
     assert b.ort == "30159 Hannover"
-    assert b.frist == "2026-11-05 12:00"
+    assert b.frist == "2099-11-05 12:00"
 
 
 def test_fremdes_thema_und_ausschluss():
@@ -76,6 +76,18 @@ def test_tage_nachholen():
     assert len(ac.zu_pruefende_tage({"letzter_tag": None}, heute, None)) == 30
     assert ac.zu_pruefende_tage({"letzter_tag": "2026-10-10"}, heute, None) == [dt.date(2026, 10, 11), dt.date(2026, 10, 12)]
     assert ac.zu_pruefende_tage({"letzter_tag": "2026-10-12"}, heute, None) == []
+
+
+def test_abgelaufene_frist_wird_ausgelassen(tmp_path, monkeypatch):
+    (tmp_path / "profil_ifs.yaml").write_text(PROFIL.read_text(encoding="utf-8"), encoding="utf-8")
+    alt = release("alt", "Regenklärbecken Süd")
+    alt["tender"]["tenderPeriod"]["endDate"] = "2020-01-01T10:00:00+01:00"
+    zipdatei = tmp_path / "x.zip"
+    zipdatei.write_bytes(export_zip([alt, release("neu", "Regenklärbecken Nord")]))
+    monkeypatch.setattr(ac, "basisordner", lambda: tmp_path)
+    assert ac.main(["--zip", str(zipdatei), "--nicht-oeffnen"]) == 0
+    ws = load_workbook(next((tmp_path / "ergebnisse").glob("*.xlsx")))["Treffer"]
+    assert [z[2] for z in ws.iter_rows(min_row=2, values_only=True)] == ["Regenklärbecken Nord"]
 
 
 def test_gesamtlauf(tmp_path, monkeypatch):

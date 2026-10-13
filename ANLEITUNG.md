@@ -19,7 +19,7 @@ Windows zeigt beim ersten Start eventuell „Der Computer wurde durch Windows ge
 `profil_ifs.yaml` mit einem Texteditor (z. B. Editor/Notepad) öffnen. Dort stehen Suchbegriffe mit Gewicht, CPV-Codes, Bonusregionen, Ausschlusswörter und die Mindestpunktzahl. Änderungen gelten beim nächsten Start.
 
 ## Datenquelle
-Offene Tagesexporte des Bekanntmachungsservice des Bundes (oeffentlichevergabe.de, Datenservice Öffentlicher Einkauf). Gefiltert wird auf Bekanntmachungen, die auf evergabe-online.de verweisen.
+Offene Tagesexporte des Bekanntmachungsservice des Bundes (oeffentlichevergabe.de, Datenservice Öffentlicher Einkauf). Gefiltert wird auf Bekanntmachungen, deren Vergabeunterlagen auf evergabe-online.de liegen. Die Angebotsfrist kommt aus dem eForms-Export; Bekanntmachungen mit abgelaufener Frist werden ausgelassen.
 
 ## Für Entwickler
 ```

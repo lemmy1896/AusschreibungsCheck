@@ -17,8 +17,13 @@ Ausführbares Programm (keine Website), das deutsche Ausschreibungsplattformen n
 | 6 | Bau der .exe | GitHub Actions baut auf Windows bei jedem Push; Download als Artefakt bzw. Release | kein Zugriff auf Julius' Rechner, keine Python-Installation nötig |
 | 7 | Regionen | Bundesweite Suche, Bonuspunkte für Referenzregionen | keine passende Ausschreibung soll durchrutschen |
 
+## Erkenntnisse aus dem echten Export (13.10.2026)
+- Endpunkt funktioniert: `https://oeffentlichevergabe.de/api/notice-exports?pubDay=JJJJ-MM-TT&format=ocds.zip` (bzw. `format=eforms.zip`), eine JSON-/XML-Datei pro Bekanntmachung, gleiche Dateinamen in beiden Formaten.
+- Am 12.10.2026: 106 Bekanntmachungen, davon 28 von evergabe-online.
+- Plattform steht zuverlässig in `tender.documents[].url` (Link `https://www.evergabe-online.de/tenderdetails.html?id=…`).
+- Der OCDS-Export enthält keine Angebotsfrist; sie wird aus dem eForms-Export (`TenderSubmissionDeadlinePeriod`) ergänzt. Bekanntmachungen mit abgelaufener Frist werden ausgelassen.
+
 ## Offene Punkte
-- Exakte Export-Endpunkte (vermutlich `/api/notice-exports?pubDay=JJJJ-MM-TT&format=ocds.zip`) und das Feld, an dem sich die Herkunftsplattform evergabe-online erkennen lässt, live prüfen. Aus der Cloud-Umgebung war die Seite nicht erreichbar.
 - Suchprofil mit Julius abstimmen (CPV-Codes, Regionen, Ausschlusswörter).
 
 ## Suchprofil-Entwurf (ifs Hannover)
